@@ -3,31 +3,51 @@ import { Formik, Field, Form, ErrorMessage, useFormikContext } from "formik";
 import * as Yup from "yup";
 import useRoom from "@/hooks/useRoom";
 import { useRouter } from "next/router";
-import { useState } from "react";
 import axios from "axios";
 
-const validationSchema = Yup.object().shape({
-  firstName: Yup.string().required("First Name is required"),
-  lastName: Yup.string().required("Last Name is required"),
-  email: Yup.string()
-    .email("Invalid email address")
-    .required("Email is required"),
-  phone: Yup.string().required("Phone is required"),
-  address: Yup.string().required("Address is required"),
-  paymentMethod: Yup.string()
-    .required("Payment Method is required")
-    .oneOf(["Paypal", "Other"], "Invalid Payment Method"),
-  cardNumber: Yup.string()
-    .required("Card Number is required")
-    .matches(/^\d{16}$/, "Card Number must be exactly 16 digits"),
-  number_of_people: Yup.string().required("This field is required"),
-  stay_duration: Yup.string().required("This field is required"),
-  dd: Yup.string().required("Day is required"),
-  month: Yup.string().required("Month is required"),
-  cvc: Yup.string()
-    .required("This field is required")
-    .matches(/^\d{3}$/, "CVC must be 3 digits"),
-});
+const validationSchema = (values) => {
+  return Yup.object().shape({
+    firstName: Yup.string().required("First Name is required"),
+    lastName: Yup.string().required("Last Name is required"),
+    email: Yup.string()
+      .email("Invalid email address")
+      .required("Email is required"),
+    phone_number: Yup.string().required("Phone is required"),
+    address: Yup.string().required("Address is required"),
+    paymentMethod: Yup.string()
+      .required("Payment Method is required")
+      .oneOf(["Paypal", "Other"], "Invalid Payment Method"),
+    cardNumber:
+      values && values?.paymentMethod !== "Paypal"
+        ? Yup.string()
+            .required("Card Number is required")
+            .matches(/^\d{16}$/, "Card Number must be exactly 16 digits")
+        : Yup.string().matches(
+            /^\d{16}$/,
+            "Card Number must be exactly 16 digits"
+          ),
+    number_of_people: Yup.number()
+      .typeError("Please enter a valid number")
+      .required("This field is required"),
+    stay_duration: Yup.number()
+      .typeError("Please enter a valid number")
+      .required("This field is required"),
+    day:
+      values && values?.paymentMethod !== "Paypal"
+        ? Yup.number().required("Day is required")
+        : Yup.number(),
+    month:
+      values && values.paymentMethod !== "Paypal"
+        ? Yup.number().required("Month is required")
+        : Yup.number(),
+    cvc:
+      values && values.paymentMethod !== "Paypal"
+        ? Yup.number()
+            .required("This field is required")
+            .matches(/^\d{3}$/, "CVC must be 3 digits")
+        : Yup.string().matches(/^\d{3}$/, "CVC must be 3 digits"),
+  });
+};
 
 const initialValues = {
   firstName: "",
@@ -37,15 +57,20 @@ const initialValues = {
   address: "",
   paymentMethod: "",
   cardNumber: "",
-  number_of_people: 0,
-  stay_duration: 0,
+  number_of_people: undefined,
+  stay_duration: undefined,
+  day: "",
+  month: "",
+  cvc: "",
 };
 
 function MyForm() {
   const { rType } = useRoom();
   const router = useRouter();
+
   const handleSubmit = async (values) => {
     console.log("Form submitted with values:", { ...values, roomType: rType });
+
     const url = `${process.env.NEXT_HOST_URL}/reservations/`;
     const data = {
       full_name: `${values.firstName} ${values.lastName}`,
@@ -53,12 +78,20 @@ function MyForm() {
       email: values.email,
       phone: values.phone_number,
       number_of_people: values.number_of_people,
-      payment_card_info: values.cardNumber,
+      payment_card_info: `${values.cardNumber}, ${values.day < 10 && 0}${
+        values.day
+      }/${values.month < 10 && 0}${values.month}, ${values.cvc}`,
       stay_duration: values.stay_duration,
       room_type: rType,
     };
-    const response = await axios.post(url, data);
-    console.log(response);
+
+    console.log(data);
+    try {
+      const response = await axios.post(url, data);
+      console.log(response);
+    } catch (error) {
+      console.error("Error submitting form:", error);
+    }
   };
 
   useEffect(() => {
@@ -72,7 +105,7 @@ function MyForm() {
     <div className="flex justify-center items-center h-auto py-8 bg-gray-900">
       <Formik
         initialValues={initialValues}
-        validationSchema={validationSchema}
+        validationSchema={(values) => validationSchema(values)}
         onSubmit={handleSubmit}
       >
         <Form className="w-full max-w-lg bg-gray-800 p-8 rounded-lg">
@@ -275,7 +308,6 @@ export default MyForm;
 
 function FormikCvcField() {
   const { values, errors } = useFormikContext();
-  console.log(values);
 
   // Check if paymentMethod is not Paypal to conditionally render the CVC field
   return (
@@ -313,7 +345,7 @@ function FormikCvcField() {
               DD
             </label>
             <Field
-              type="text"
+              type="number"
               id="grid-day"
               name="day"
               placeholder="90210"
@@ -333,7 +365,7 @@ function FormikCvcField() {
               MM
             </label>
             <Field
-              type="text"
+              type="number"
               id="grid-month"
               name="month"
               placeholder="90210"
@@ -353,14 +385,14 @@ function FormikCvcField() {
               CVC
             </label>
             <Field
-              type="text"
+              type="number"
               id="grid-cvc"
               name="cvc"
               placeholder="90210"
               className="appearance-none block w-full bg-gray-700 text-white border border-gray-500 rounded py-3 px-4 leading-tight focus:outline-none focus:bg-gray-600 focus:border-gray-500"
             />
             <ErrorMessage
-              name="zip"
+              name="cvc"
               component="p"
               className="text-red-500 text-xs italic"
             />
