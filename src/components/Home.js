@@ -141,8 +141,8 @@ const rooms = [
   },
   {
     id: 3,
-    type: "Multiple",
-    name: "Multiple",
+    type: "Suite",
+    name: "Suite",
   },
 ];
 

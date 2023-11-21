@@ -4,6 +4,8 @@ import * as Yup from "yup";
 import useRoom from "@/hooks/useRoom";
 import { useRouter } from "next/router";
 import axios from "axios";
+import SweetAlert2 from "react-sweetalert2";
+import { axiosInterceptorInstance } from "@/axios/axios";
 
 const validationSchema = (values) => {
   return Yup.object().shape({
@@ -12,7 +14,9 @@ const validationSchema = (values) => {
     email: Yup.string()
       .email("Invalid email address")
       .required("Email is required"),
-    phone_number: Yup.string().required("Phone is required"),
+    phone_number: Yup.string()
+      .required("Phone is required")
+      .matches(/^\d{10}$/, "Phone number must be 10 digits"),
     address: Yup.string().required("Address is required"),
     paymentMethod: Yup.string()
       .required("Payment Method is required")
@@ -22,10 +26,7 @@ const validationSchema = (values) => {
         ? Yup.string()
             .required("Card Number is required")
             .matches(/^\d{16}$/, "Card Number must be exactly 16 digits")
-        : Yup.string().matches(
-            /^\d{16}$/,
-            "Card Number must be exactly 16 digits"
-          ),
+        : Yup.string(),
     number_of_people: Yup.number()
       .typeError("Please enter a valid number")
       .required("This field is required"),
@@ -45,7 +46,7 @@ const validationSchema = (values) => {
         ? Yup.number()
             .required("This field is required")
             .matches(/^\d{3}$/, "CVC must be 3 digits")
-        : Yup.string().matches(/^\d{3}$/, "CVC must be 3 digits"),
+        : Yup.string(),
   });
 };
 
@@ -69,26 +70,25 @@ function MyForm() {
   const router = useRouter();
 
   const handleSubmit = async (values) => {
-    console.log("Form submitted with values:", { ...values, roomType: rType });
-
-    const url = `${process.env.NEXT_HOST_URL}/reservations/`;
+    const url = `http://www.localhost:8000/reservations/`;
     const data = {
       full_name: `${values.firstName} ${values.lastName}`,
       address: values.address,
       email: values.email,
-      phone: values.phone_number,
+      phone_number: String(values.phone_number),
       number_of_people: values.number_of_people,
-      payment_card_info: `${values.cardNumber}, ${values.day < 10 && 0}${
+      payment_card_info: `${values.cardNumber}, ${values.day < 10 ? 0 : ""}${
         values.day
-      }/${values.month < 10 && 0}${values.month}, ${values.cvc}`,
+      }/${values.month < 10 ? 0 : ""}${values.month}, ${values.cvc}`,
       stay_duration: values.stay_duration,
-      room_type: rType,
+      room_type: rType.toLowerCase(),
     };
-
-    console.log(data);
     try {
-      const response = await axios.post(url, data);
-      console.log(response);
+      const response = await axiosInterceptorInstance.post(url, data);
+      sessionStorage.setItem("id", response.data.id);
+      if (response.status === 200 && values.paymentMethod === "Paypal") {
+        router.push("/paypal_login");
+      }
     } catch (error) {
       console.error("Error submitting form:", error);
     }
@@ -184,7 +184,7 @@ function MyForm() {
                 Phone
               </label>
               <Field
-                type="text"
+                type="number"
                 id="grid-phone"
                 name="phone_number"
                 placeholder="Phone"
